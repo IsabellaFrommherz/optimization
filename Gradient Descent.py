@@ -48,6 +48,7 @@ for i in range(N):
 x_np = x.detach().numpy()
 print(x_np)
 
+# Plot
 plt.figure(figsize=(6, 6))
 plt.scatter(x_np[:, 0], x_np[:, 1])
 plt.title("Gradient Descent - Optimized Points")
