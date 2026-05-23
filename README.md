@@ -1,4 +1,4 @@
-# Optimization & Machine Learning – Python Exercises
+# Optimization – Python Exercises
 
 Solutions to exercises from the module "Optimization & Machine Learning" (M16, FernUni Switzerland, FS24).
 Originally solved in MATLAB, reimplemented in Python using PyTorch.
