@@ -1,25 +1,35 @@
-Optimization & Machine Learning – Python Exercises
+# Optimization & Machine Learning – Python Exercises
 
-Solutions to exercises from the module "Optimization & Machine Learning" (M16, FernUni Switzerland). Originally solved in MATLAB, reimplemented in Python.
+Solutions to exercises from the module "Optimization & Machine Learning" (M16, FernUni Switzerland, FS24).
+Originally solved in MATLAB, reimplemented in Python using PyTorch.
 
-Topics covered:
+## Exercises
 
+### Gradient Descent
+Minimization of a 2D point configuration function using plain Gradient Descent with PyTorch autograd.
 
-Gradient Descent
-Convex Optimization
-Automatic Differentiation with PyTorch
+### Optimization Algorithms
+Implementation and comparison of 6 optimization algorithms:
+- Newton-Raphson (with exact Hessian via PyTorch)
+- Gradient Descent with Momentum
+- ADAM (without stochastic gradients)
+- Plain SGD
+- SGD with Momentum
+- ADAM (with stochastic gradients)
 
+## Topics Covered
+- Gradient Descent
+- Stochastic Gradient Descent
+- Momentum
+- Adaptive Learning Rates (ADAM)
+- Newton-Raphson with Hessian Matrix
+- Automatic Differentiation with PyTorch
+- Convergence Analysis
 
-Requirements:
+## Requirements
+- Python 3.x
+- PyTorch
+- Matplotlib
 
-
-Python 3.x
-PyTorch
-NumPy
-Matplotlib
-
-
-Install dependencies:
-
-pip install torch numpy matplotlib
-
+## Install Dependencies
+pip install torch matplotlib
