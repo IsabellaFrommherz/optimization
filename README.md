@@ -1,4 +1,4 @@
-# Optimization & Machine Learning – Python Exercises
+# Optimization – Python Exercises
 
 Solutions to exercises from the module "Optimization & Machine Learning" (M16, FernUni Switzerland, FS24).
 Originally solved in MATLAB, reimplemented in Python using PyTorch.
@@ -17,13 +17,18 @@ Implementation and comparison of 6 optimization algorithms:
 - SGD with Momentum
 - ADAM (with stochastic gradients)
 
+### Best Configuration (Step-Size Schedule)
+All 6 methods combined with a step-size schedule to find the best possible configuration.
+The learning rate decreases over time: `eta_t = eta / (1 + 0.001 * t)`
+
 ## Topics Covered
 - Gradient Descent
 - Stochastic Gradient Descent
 - Momentum
 - Adaptive Learning Rates (ADAM)
-- Newton-Raphson with Hessian Matrix
+- Newton-Raphson with exact Hessian Matrix
 - Automatic Differentiation with PyTorch
+- Step-Size Schedules
 - Convergence Analysis
 
 ## Requirements
