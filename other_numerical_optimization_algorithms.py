@@ -4,26 +4,24 @@ import matplotlib.pyplot as plt
 n = 20
 torch.manual_seed(42)
 
-
 # ── Objective function ────────────────────────────────────────────
 def f(x):
     a = x[:, 0]  # extract a-coordinates of all points
     b = x[:, 1]  # extract b-coordinates of all points
 
     # clamp exponent to avoid exp() overflow
-    exponent = torch.clamp((a ** 2 + 2 * b ** 2) ** 5, max=50)
+    exponent = torch.clamp((a**2 + 2*b**2)**5, max=50)
     # term 1: penalizes points far from the origin
     term1 = torch.mean(torch.exp(exponent))
 
     # compute pairwise differences between all points
     diff = x[:, None, :] - x[None, :, :]
     # compute euclidean distances, add small value to avoid sqrt(0)
-    dist = torch.sqrt((diff ** 2).sum(dim=-1) + 1e-8)
+    dist = torch.sqrt((diff**2).sum(dim=-1) + 1e-8)
     # term 2: penalizes points that are too close to each other
     term2 = torch.mean(torch.exp(-10 * dist))
 
     return term1 + term2
-
 
 # ── Stochastic objective function ─────────────────────────────────
 def f_stoch(x):
@@ -34,17 +32,16 @@ def f_stoch(x):
 
     a_i = x[i, 0]
     b_i = x[i, 1]
-    exponent = torch.clamp((a_i ** 2 + 2 * b_i ** 2) ** 5, max=50)
+    exponent = torch.clamp((a_i**2 + 2*b_i**2)**5, max=50)
     # stochastic term 1: single random point
     term1 = torch.exp(exponent)
 
     # stochastic term 2: single random pair of points
     diff = x[j] - x[l]
-    dist = torch.sqrt((diff ** 2).sum() + 1e-8)
+    dist = torch.sqrt((diff**2).sum() + 1e-8)
     term2 = torch.exp(-10 * dist)
 
     return term1 + term2
-
 
 # ── Helper: fresh starting point ──────────────────────────────────
 def init_x():
@@ -53,7 +50,6 @@ def init_x():
     # enable gradient tracking for autograd
     x.requires_grad_(True)
     return x
-
 
 # ── Helper: compute gradient ──────────────────────────────────────
 def get_grad(x, stochastic=False):
@@ -67,12 +63,11 @@ def get_grad(x, stochastic=False):
     # return loss value and a copy of the gradient
     return loss.item(), x.grad.clone()
 
-
 # ── 1. Newton-Raphson ──────────────────────────────────────────────
 def newton_raphson(iterations=100):
     x = init_x()
     losses = []
-    for _ in range(iterations):
+    for t in range(1, iterations + 1):
         loss_val, grad = get_grad(x)
         losses.append(loss_val)
 
@@ -81,12 +76,12 @@ def newton_raphson(iterations=100):
         hess = torch.autograd.functional.hessian(f, x_fresh)
 
         # reshape Hessian from (20,2,20,2) to (40,40)
-        hess = hess.reshape(n * 2, n * 2)
+        hess = hess.reshape(n*2, n*2)
         # flatten gradient from (20,2) to (40,)
         grad_flat = grad.reshape(-1)
 
         # regularization to ensure positive definiteness
-        hess = hess + 0.1 * torch.eye(n * 2)
+        hess = hess + 0.1 * torch.eye(n*2)
 
         # solve H*delta = grad instead of explicitly inverting H
         delta = torch.linalg.solve(hess, grad_flat)
@@ -100,22 +95,19 @@ def newton_raphson(iterations=100):
 
     return x.detach(), losses
 
-
 # ── 2. Gradient Descent with Momentum ─────────────────────────────
 def gd_momentum(eta=0.001, beta=0.9, iterations=1000):
     x = init_x()
-    # initialize velocity to zero
-    velocity = torch.zeros_like(x)
+    x_prev = x.clone()  # x_{n-1}
     losses = []
     for _ in range(iterations):
         loss_val, grad = get_grad(x)
         losses.append(loss_val)
         with torch.no_grad():
-            # update velocity as weighted average of past gradients
-            velocity = beta * velocity + (1 - beta) * grad
-            x -= eta * velocity
+            x_new = x - eta * grad + beta * (x - x_prev)
+            x_prev = x.clone()
+            x.copy_(x_new)
     return x.detach(), losses
-
 
 # ── 3. ADAM without stochastic gradients ──────────────────────────
 def adam(eta=0.01, beta1=0.9, beta2=0.999, eps=1e-8, iterations=1000):
@@ -130,14 +122,13 @@ def adam(eta=0.01, beta1=0.9, beta2=0.999, eps=1e-8, iterations=1000):
         with torch.no_grad():
             # update biased moment estimates
             m = beta1 * m + (1 - beta1) * grad
-            v = beta2 * v + (1 - beta2) * grad ** 2
+            v = beta2 * v + (1 - beta2) * grad**2
             # bias correction
-            m_hat = m / (1 - beta1 ** t)
-            v_hat = v / (1 - beta2 ** t)
+            m_hat = m / (1 - beta1**t)
+            v_hat = v / (1 - beta2**t)
             # update x with adaptive learning rate
             x -= eta * m_hat / (torch.sqrt(v_hat) + eps)
     return x.detach(), losses
-
 
 # ── 4. Plain SGD ───────────────────────────────────────────────────
 def plain_sgd(eta=0.001, iterations=1000):
@@ -151,21 +142,20 @@ def plain_sgd(eta=0.001, iterations=1000):
             x -= eta * grad
     return x.detach(), losses
 
-
 # ── 5. SGD with Momentum ───────────────────────────────────────────
 def sgd_momentum(eta=0.001, beta=0.9, iterations=1000):
     x = init_x()
-    velocity = torch.zeros_like(x)
+    x_prev = x.clone()  # x_{n-1}
     losses = []
     for _ in range(iterations):
         # use stochastic gradient
         loss_val, grad = get_grad(x, stochastic=True)
         losses.append(loss_val)
         with torch.no_grad():
-            velocity = beta * velocity + (1 - beta) * grad
-            x -= eta * velocity
+            x_new = x - eta * grad + beta * (x - x_prev)
+            x_prev = x.clone()
+            x.copy_(x_new)
     return x.detach(), losses
-
 
 # ── 6. ADAM with stochastic gradients ─────────────────────────────
 def adam_stoch(eta=0.01, beta1=0.9, beta2=0.999, eps=1e-8, iterations=1000):
@@ -179,12 +169,11 @@ def adam_stoch(eta=0.01, beta1=0.9, beta2=0.999, eps=1e-8, iterations=1000):
         losses.append(loss_val)
         with torch.no_grad():
             m = beta1 * m + (1 - beta1) * grad
-            v = beta2 * v + (1 - beta2) * grad ** 2
-            m_hat = m / (1 - beta1 ** t)
-            v_hat = v / (1 - beta2 ** t)
+            v = beta2 * v + (1 - beta2) * grad**2
+            m_hat = m / (1 - beta1**t)
+            v_hat = v / (1 - beta2**t)
             x -= eta * m_hat / (torch.sqrt(v_hat) + eps)
     return x.detach(), losses
-
 
 # ── Run all methods ────────────────────────────────────────────────
 print("Running Newton-Raphson...")
@@ -205,17 +194,23 @@ x5, l5 = sgd_momentum()
 print("Running ADAM (stochastic)...")
 x6, l6 = adam_stoch()
 
-# ── Plot 1: Loss curves ────────────────────────────────────────────
+# ── Helper: smooth curves for better readability ───────────────────
+# note: stochastic methods produce noisy loss curves due to random gradient estimates
+def smooth(losses, window=50):
+    return [sum(losses[max(0,i-window):i+1]) /
+            min(i+1, window) for i in range(len(losses))]
+
+# ── Plot 1: Loss curves (smoothed) ────────────────────────────────
 plt.figure(figsize=(10, 5))
-plt.plot(l1, label="Newton-Raphson")
-plt.plot(l2, label="GD with Momentum")
-plt.plot(l3, label="ADAM")
-plt.plot(l4, label="Plain SGD")
-plt.plot(l5, label="SGD with Momentum")
-plt.plot(l6, label="ADAM (stochastic)")
+plt.plot(smooth(l1), label="Newton-Raphson")
+plt.plot(smooth(l2), label="GD with Momentum")
+plt.plot(smooth(l3), label="ADAM")
+plt.plot(smooth(l4), label="Plain SGD")
+plt.plot(smooth(l5), label="SGD with Momentum")
+plt.plot(smooth(l6), label="ADAM (stochastic)")
 plt.xlabel("Iteration")
 plt.ylabel("Objective Value")
-plt.title("Convergence Comparison")
+plt.title("Convergence Comparison - smoothed (window=50) (Newton-Raphson: 100 iterations, others: 5000)")
 plt.legend()
 plt.yscale("log")
 plt.grid(True)
