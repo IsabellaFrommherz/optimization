@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 n = 20
 
-# ── Objective function ────────────────────────────────────────────
+# objective function
 def f(x):
     a = x[:, 0]  # extract a-coordinates of all points
     b = x[:, 1]  # extract b-coordinates of all points
@@ -28,7 +28,7 @@ x = torch.randn(n, 2) * 0.01
 # enable gradient tracking for autograd
 x.requires_grad_(True)
 
-# ── Gradient Descent ──────────────────────────────────────────────
+# gradient descent
 eta = 0.001      # learning rate
 iterations = 1000
 
@@ -46,7 +46,6 @@ for i in range(iterations):
     if i % 500 == 0:
         print(f"Iteration {i}, Loss: {loss.item():.6f}")
 
-# ── Plot ──────────────────────────────────────────────────────────
 # detach from autograd and convert to numpy for plotting
 x_np = x.detach().numpy()
 
