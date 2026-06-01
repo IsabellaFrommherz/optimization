@@ -6,41 +6,61 @@ torch.manual_seed(42)
 
 # ── Objective function ────────────────────────────────────────────
 def f(x):
-    a = x[:, 0]
-    b = x[:, 1]
+    a = x[:, 0]  # extract a-coordinates of all points
+    b = x[:, 1]  # extract b-coordinates of all points
+
+    # clamp exponent to avoid exp() overflow
     exponent = torch.clamp((a**2 + 2*b**2)**5, max=50)
+    # term 1: penalizes points far from the origin
     term1 = torch.mean(torch.exp(exponent))
+
+    # compute pairwise differences between all points
     diff = x[:, None, :] - x[None, :, :]
+    # compute euclidean distances, add small value to avoid sqrt(0)
     dist = torch.sqrt((diff**2).sum(dim=-1) + 1e-8)
+    # term 2: penalizes points that are too close to each other
     term2 = torch.mean(torch.exp(-10 * dist))
+
     return term1 + term2
 
 # ── Stochastic objective function ─────────────────────────────────
 def f_stoch(x):
+    # sample random indices i, j, l uniformly from {0, ..., k-1}
     i = torch.randint(0, n, (1,)).item()
     j = torch.randint(0, n, (1,)).item()
     l = torch.randint(0, n, (1,)).item()
+
     a_i = x[i, 0]
     b_i = x[i, 1]
     exponent = torch.clamp((a_i**2 + 2*b_i**2)**5, max=50)
+    # stochastic term 1: single random point
     term1 = torch.exp(exponent)
+
+    # stochastic term 2: single random pair of points
     diff = x[j] - x[l]
     dist = torch.sqrt((diff**2).sum() + 1e-8)
     term2 = torch.exp(-10 * dist)
+
     return term1 + term2
 
 # ── Helper: fresh starting point ──────────────────────────────────
 def init_x():
+    # initialize points near origin for numerical stability
     x = torch.randn(n, 2) * 0.01
+    # enable gradient tracking for autograd
     x.requires_grad_(True)
     return x
 
 # ── Helper: compute gradient ──────────────────────────────────────
 def get_grad(x, stochastic=False):
+    # reset gradient to avoid accumulation
     if x.grad is not None:
         x.grad.zero_()
+    # use stochastic or full objective function
     loss = f_stoch(x) if stochastic else f(x)
+    # compute gradients via backpropagation
     loss.backward()
+    # return loss value and a copy of the gradient
     return loss.item(), x.grad.clone()
 
 # ── Helper: track best solution ───────────────────────────────────
@@ -53,7 +73,7 @@ def update_best(x, loss_val, best_loss, best_x):
 def schedule(eta, t):
     return eta / (1 + 0.001 * t)
 
-# ── 1. Newton-Raphson with schedule ───────────────────────────────
+# ── 1. Newton-Raphson ──────────────────────────────────────────────
 def newton_raphson(iterations=100):
     x = init_x()
     losses = []
@@ -64,12 +84,22 @@ def newton_raphson(iterations=100):
         losses.append(loss_val)
         best_loss, best_x = update_best(x, loss_val, best_loss, best_x)
 
+        # compute exact Hessian matrix via PyTorch autograd
         x_fresh = x.detach().requires_grad_(True)
         hess = torch.autograd.functional.hessian(f, x_fresh)
+
+        # reshape Hessian from (20,2,20,2) to (40,40)
         hess = hess.reshape(n*2, n*2)
+        # flatten gradient from (20,2) to (40,)
         grad_flat = grad.reshape(-1)
+
+        # regularization to ensure positive definiteness
         hess = hess + 0.1 * torch.eye(n*2)
+
+        # solve H*delta = grad instead of explicitly inverting H
         delta = torch.linalg.solve(hess, grad_flat)
+
+        # clamp step size to prevent divergence
         delta = torch.clamp(delta, -0.1, 0.1)
 
         # apply schedule to step size
@@ -79,10 +109,10 @@ def newton_raphson(iterations=100):
 
     return best_x, losses
 
-# ── 2. Gradient Descent with Momentum and schedule ────────────────
+# ── 2. Gradient Descent with Momentum ─────────────────────────────
 def gd_momentum(eta=0.001, beta=0.9, iterations=5000):
     x = init_x()
-    velocity = torch.zeros_like(x)
+    x_prev = x.clone()  # x_{n-1}
     losses = []
     best_loss = float('inf')
     best_x = None
@@ -91,16 +121,19 @@ def gd_momentum(eta=0.001, beta=0.9, iterations=5000):
         losses.append(loss_val)
         best_loss, best_x = update_best(x, loss_val, best_loss, best_x)
 
+        # update rule: x_{n+1} = x_n - eta_t * grad + beta * (x_n - x_{n-1})
         eta_t = schedule(eta, t)
         with torch.no_grad():
-            velocity = beta * velocity + (1 - beta) * grad
-            x -= eta_t * velocity
+            x_new = x - eta_t * grad + beta * (x - x_prev)
+            x_prev = x.clone()
+            x.copy_(x_new)
 
     return best_x, losses
 
-# ── 3. ADAM without stochastic gradients and schedule ─────────────
+# ── 3. ADAM without stochastic gradients ──────────────────────────
 def adam(eta=0.01, beta1=0.9, beta2=0.999, eps=1e-8, iterations=5000):
     x = init_x()
+    # initialize first and second moment estimates
     m = torch.zeros_like(x)
     v = torch.zeros_like(x)
     losses = []
@@ -113,21 +146,25 @@ def adam(eta=0.01, beta1=0.9, beta2=0.999, eps=1e-8, iterations=5000):
 
         eta_t = schedule(eta, t)
         with torch.no_grad():
+            # update biased moment estimates
             m = beta1 * m + (1 - beta1) * grad
             v = beta2 * v + (1 - beta2) * grad**2
+            # bias correction
             m_hat = m / (1 - beta1**t)
             v_hat = v / (1 - beta2**t)
+            # update x with adaptive and scheduled learning rate
             x -= eta_t * m_hat / (torch.sqrt(v_hat) + eps)
 
     return best_x, losses
 
-# ── 4. Plain SGD with schedule ────────────────────────────────────
+# ── 4. Plain SGD ───────────────────────────────────────────────────
 def plain_sgd(eta=0.001, iterations=5000):
     x = init_x()
     losses = []
     best_loss = float('inf')
     best_x = None
     for t in range(1, iterations + 1):
+        # use stochastic gradient
         loss_val, grad = get_grad(x, stochastic=True)
         losses.append(loss_val)
         best_loss, best_x = update_best(x, loss_val, best_loss, best_x)
@@ -138,26 +175,29 @@ def plain_sgd(eta=0.001, iterations=5000):
 
     return best_x, losses
 
-# ── 5. SGD with Momentum and schedule ────────────────────────────
+# ── 5. SGD with Momentum ───────────────────────────────────────────
 def sgd_momentum(eta=0.001, beta=0.9, iterations=5000):
     x = init_x()
-    velocity = torch.zeros_like(x)
+    x_prev = x.clone()  # x_{n-1}
     losses = []
     best_loss = float('inf')
     best_x = None
     for t in range(1, iterations + 1):
+        # use stochastic gradient
         loss_val, grad = get_grad(x, stochastic=True)
         losses.append(loss_val)
         best_loss, best_x = update_best(x, loss_val, best_loss, best_x)
 
+        # update rule: x_{n+1} = x_n - eta_t * grad + beta * (x_n - x_{n-1})
         eta_t = schedule(eta, t)
         with torch.no_grad():
-            velocity = beta * velocity + (1 - beta) * grad
-            x -= eta_t * velocity
+            x_new = x - eta_t * grad + beta * (x - x_prev)
+            x_prev = x.clone()
+            x.copy_(x_new)
 
     return best_x, losses
 
-# ── 6. ADAM with stochastic gradients and schedule ────────────────
+# ── 6. ADAM with stochastic gradients ─────────────────────────────
 def adam_stoch(eta=0.01, beta1=0.9, beta2=0.999, eps=1e-8, iterations=5000):
     x = init_x()
     m = torch.zeros_like(x)
@@ -166,6 +206,7 @@ def adam_stoch(eta=0.01, beta1=0.9, beta2=0.999, eps=1e-8, iterations=5000):
     best_loss = float('inf')
     best_x = None
     for t in range(1, iterations + 1):
+        # use stochastic gradient
         loss_val, grad = get_grad(x, stochastic=True)
         losses.append(loss_val)
         best_loss, best_x = update_best(x, loss_val, best_loss, best_x)
@@ -199,17 +240,23 @@ x5, l5 = sgd_momentum()
 print("Running ADAM (stochastic)...")
 x6, l6 = adam_stoch()
 
-# ── Plot 1: Loss curves ────────────────────────────────────────────
+# ── Helper: smooth curves for better readability ───────────────────
+# note: stochastic methods produce noisy loss curves due to random gradient estimates
+def smooth(losses, window=50):
+    return [sum(losses[max(0,i-window):i+1]) /
+            min(i+1, window) for i in range(len(losses))]
+
+# ── Plot 1: Loss curves (smoothed) ────────────────────────────────
 plt.figure(figsize=(10, 5))
-plt.plot(l1, label="Newton-Raphson")
-plt.plot(l2, label="GD with Momentum")
-plt.plot(l3, label="ADAM")
-plt.plot(l4, label="Plain SGD")
-plt.plot(l5, label="SGD with Momentum")
-plt.plot(l6, label="ADAM (stochastic)")
+plt.plot(smooth(l1), label="Newton-Raphson")
+plt.plot(smooth(l2), label="GD with Momentum")
+plt.plot(smooth(l3), label="ADAM")
+plt.plot(smooth(l4), label="Plain SGD")
+plt.plot(smooth(l5), label="SGD with Momentum")
+plt.plot(smooth(l6), label="ADAM (stochastic)")
 plt.xlabel("Iteration")
 plt.ylabel("Objective Value")
-plt.title("Convergence Comparison with Step-Size Schedule")
+plt.title("Convergence Comparison with Step-Size Schedule - smoothed (window=50)\n(Newton-Raphson: 100 iterations, others: 5000)")
 plt.legend()
 plt.yscale("log")
 plt.grid(True)
