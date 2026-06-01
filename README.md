@@ -3,8 +3,6 @@
 Solutions to exercises from the module "Optimization & Machine Learning" (M16, FernUni Switzerland, FS24).
 Originally solved in MATLAB, reimplemented in Python using PyTorch.
 
-## Exercises
-
 ### Gradient Descent
 Minimization of a 2D point configuration function using plain Gradient Descent with PyTorch autograd.
 
