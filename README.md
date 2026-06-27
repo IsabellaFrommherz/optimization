@@ -18,6 +18,7 @@ Implemented in Python using PyTorch.
 - ADAM (with stochastic gradients)
 - Convergence comparison and point distribution plots
 
+### Step-Size Schedule
 **Best Configuration with Step-Size Schedule**
 - All 6 methods combined with step-size schedule: eta_t = eta / (1 + 0.001 * t)
 - Tracking best solution found during optimization
